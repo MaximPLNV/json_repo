@@ -19,13 +19,13 @@ func NewJsonFileReader(fileName string) *JsonFileReader {
 type JsonFileReader struct {
 	filterFn        func(*entities.BaseEntity) (bool, error)
 	actionFn        func(*entities.BaseEntity)
-	closeCn         chan bool
+	closeCn         chan struct{}
 	fileName        string
 	fileAccessFlags int
 }
 
 func (fm *JsonFileReader) ReadByLine() error {
-	fm.closeCn = make(chan bool)
+	fm.closeCn = make(chan struct{}, 1)
 	defer close(fm.closeCn)
 
 	file, err := fm.openFile()
@@ -47,7 +47,7 @@ func (fm *JsonFileReader) SetAction(fn func(*entities.BaseEntity)) {
 }
 
 func (fm *JsonFileReader) StopReading() {
-	fm.closeCn <- true
+	fm.closeCn <- struct{}{}
 }
 
 func (fm *JsonFileReader) openFile() (*os.File, error) {
@@ -81,6 +81,9 @@ loop:
 
 func (fm *JsonFileReader) processLine(line *[]byte) error {
 	line = fm.trimLine(line)
+	if line == nil {
+		return nil
+	}
 
 	e, err := fm.parseEntity(line)
 	if err != nil {
@@ -104,7 +107,7 @@ func (fm *JsonFileReader) trimLine(line *[]byte) *[]byte {
 
 func (fm *JsonFileReader) parseEntity(line *[]byte) (*entities.BaseEntity, error) {
 	var e *entities.BaseEntity
-	if err := json.Unmarshal(*line, e); err != nil {
+	if err := json.Unmarshal(*line, &e); err != nil {
 		return nil, fmt.Errorf("Line can't be parsed. Line: \"%s\"", line)
 	}
 
