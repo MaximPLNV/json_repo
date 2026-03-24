@@ -108,7 +108,7 @@ func (fm *JsonFileReader) trimLine(line *[]byte) *[]byte {
 func (fm *JsonFileReader) parseEntity(line *[]byte) (*entities.BaseEntity, error) {
 	var e *entities.BaseEntity
 	if err := json.Unmarshal(*line, &e); err != nil {
-		return nil, fmt.Errorf("Line can't be parsed. Line: \"%s\"", line)
+		return nil, fmt.Errorf("Line can't be parsed. Line: \"%s\"", *line)
 	}
 
 	return e, nil
