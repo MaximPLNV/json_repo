@@ -4,8 +4,10 @@ import (
 	"MaximPLNV/json_repo/entities"
 	"MaximPLNV/json_repo/interfaces"
 	"MaximPLNV/json_repo/utils"
+	"encoding/json"
 	"fmt"
 	"slices"
+	"time"
 )
 
 func NewJsonRepo(fName string) *JsonRepo {
@@ -62,31 +64,137 @@ func (jr *JsonRepo) GetAll() (*[]entities.BaseEntity, error) {
 }
 
 func (jr *JsonRepo) Add(es *[]entities.BaseEntity) (*[]entities.BaseEntity, error) {
-	// Reader to read file and return line by line
-	// Writer to write lines to temp file
-	// If there is free slot between records then add new task
-	// If no write already existing line
-	// If file is ended and there are still tasks to inser then add at the end
-	// Close writed file and rename it
+	idCounter := 0
+	insertedCount := 0
+	esLen := len(*es)
+
+	f := func(e *entities.BaseEntity) (bool, error) {
+		if e.Id != idCounter && esLen > insertedCount {
+			return true, nil
+		}
+		idCounter++
+		return false, nil
+	}
+
+	act := func(e *entities.BaseEntity) (*[]byte, error) {
+		result := make([]byte, 0)
+		stopId := e.Id
+		for i := idCounter; i < stopId && insertedCount < esLen; i++ {
+			recToInsert := (*es)[insertedCount]
+			recToInsert.Id = idCounter
+			recToInsert.CreatedAt = time.Now()
+			recToInsert.UpdatedAt = time.Now()
+			bRecToInsert, err := json.Marshal(recToInsert)
+			if err != nil {
+				return nil, err
+			}
+			bRecToInsert = append(bRecToInsert, []byte(",\n")...)
+			result = append(result, bRecToInsert...)
+			idCounter++
+			insertedCount++
+		}
+
+		bEntity, err := json.Marshal(e)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, bEntity...)
+		idCounter++
+		return &result, nil
+	}
+
+	postActFn := func() (*[]byte, error) {
+		result := make([]byte, 0)
+
+		if esLen == insertedCount {
+			return &result, nil
+		}
+
+		for i := idCounter; insertedCount < esLen; i++ {
+			result = append(result, []byte(",\n")...)
+			recToInsert := (*es)[insertedCount]
+			recToInsert.Id = idCounter
+			recToInsert.CreatedAt = time.Now()
+			recToInsert.UpdatedAt = time.Now()
+			bRecToInsert, err := json.Marshal(recToInsert)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, bRecToInsert...)
+			idCounter++
+			insertedCount++
+		}
+		return &result, nil
+	}
+
+	jr.writer.SetFilter(f)
+	jr.writer.SetAction(act)
+	jr.writer.SetPostAction(postActFn)
+
+	if err := jr.writer.WriteByLine(); err != nil {
+		return nil, err
+	}
+
 	return nil, nil
 }
 
 func (jr *JsonRepo) Update(es *[]entities.BaseEntity) error {
-	// Reader to read file and return line by line
-	// Writer to write lines to temp file
-	// If there is task with correct id then update task
-	// If no write already existing line
-	// If file is ended and there are still tasks to update then show error
-	// Close writed file and rename it
+	ids := jr.getEntitiesIds(es)
+
+	f := func(e *entities.BaseEntity) (bool, error) {
+		if slices.Contains(*ids, e.Id) {
+			return true, nil
+		}
+
+		return false, nil
+	}
+
+	act := func(e *entities.BaseEntity) (*[]byte, error) {
+		//TODO
+		return nil, nil
+	}
+
+	jr.writer.SetFilter(f)
+	jr.writer.SetAction(act)
+
+	if err := jr.writer.WriteByLine(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (jr *JsonRepo) Delete(ids *[]int) error {
-	// Reader to read file and return line by line
-	// Writer to write lines to temp file
-	// If there is task with correct id then skip it
-	// If no write already existing line
-	// If file is ended and there are still tasks to delete then show error
-	// Close writed file and rename it
+
+	f := func(e *entities.BaseEntity) (bool, error) {
+		if slices.Contains(*ids, e.Id) {
+			return true, nil
+		}
+
+		return false, nil
+	}
+
+	act := func(e *entities.BaseEntity) (*[]byte, error) {
+		result := make()
+		return nil, nil
+	}
+
+	jr.writer.SetFilter(f)
+	jr.writer.SetAction(act)
+
+	if err := jr.writer.WriteByLine(); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func (jr *JsonRepo) getEntitiesIds(es *[]entities.BaseEntity) *[]int {
+	ids := make([]int, len(*es))
+
+	for i, e := range *es {
+		ids[i] = e.Id
+	}
+
+	return &ids
 }

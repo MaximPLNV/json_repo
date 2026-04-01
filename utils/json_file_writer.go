@@ -20,6 +20,7 @@ func NewJsonFileWriter(f string) *JsonFileWriter {
 type JsonFileWriter struct {
 	filterFn        func(*entities.BaseEntity) (bool, error)
 	actionFn        func(*entities.BaseEntity) (*[]byte, error)
+	postActionFn    func() (*[]byte, error)
 	closeCn         chan struct{}
 	fileName        string
 	tempFilePath    string
@@ -33,6 +34,10 @@ func (fm *JsonFileWriter) SetFilter(fn func(*entities.BaseEntity) (bool, error))
 
 func (fm *JsonFileWriter) SetAction(fn func(*entities.BaseEntity) (*[]byte, error)) {
 	fm.actionFn = fn
+}
+
+func (fm *JsonFileWriter) SetPostAction(fn func() (*[]byte, error)) {
+	fm.postActionFn = fn
 }
 
 func (fm *JsonFileWriter) StopReading() {
